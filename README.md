@@ -4,15 +4,17 @@ BepInEx-5-Plugin für Graveyard Keeper (Version 1): erlaubt auf der Zombie-Farm
 alle Samen, die auch im normalen Beet wachsen (z. B. Hanf). Spalier-Pflanzen
 (Wein, Hopfen) bleiben ausgenommen.
 
-## Stand
+## Funktion (1.0.0)
 
-- 0.1.0: Analysephase. Das Plugin schreibt beim Laden der Spielbalance
-  `balance-dump.txt` neben die DLL (Crafts `garden_*` und Zombie-Beet-Objekte).
-- Verifiziert (2026-11-22, `resources.assets`): Zombie-Beet hat Crafts für
-  Weizen, Kohl, Karotte, Rübe, Linsen, Kürbis, Zwiebel. Im Spielerbeet gibt es
-  zusätzlich Hanf (`hamp_seed`, `garden_cannabis_*`); Wein/Hopfen brauchen Spalier.
-- Hypothese: Zombie-Crafts wechseln per `change_wgo` in ein pflanzenspezifisches
-  Objekt (`zombie_garden_desk_<crop>`); für Hanf existiert keines. Wird mit dem Dump geprüft.
+Beim Laden der Spielbalance werden für jede Pflanze des normalen Beets ohne
+Spalier, die dem Zombie-Beet fehlt (derzeit Hanf), die Zwiebel-Crafts
+`garden_onion_grow_desk_planting_1..3` geklont: gleiche Beetstufen, gleiche
+Kosten (24 Samen), Ernte, Samen und Stroh, nur mit Hanf-Items.
+
+Verifiziert per Balance-Dump (2026-11-22): Zombie-Crafts sind eigenständig
+(`craft_in` = `zombie_garden_desk_0/1/2`, kein `change_wgo`). Ungetestet im
+Spiel: Anzeige des Beets. Config `Visual Crop` (Standard `onion`) bestimmt das
+Sprite, da es für Hanf keines gibt.
 
 ## Bauen / Installieren
 
