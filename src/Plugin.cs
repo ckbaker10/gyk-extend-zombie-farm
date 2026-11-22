@@ -98,7 +98,15 @@ namespace ExtendZombieFarm
 
         private static Item Remap(Item src, string seedId, string cropId)
         {
-            var item = new Item(src);
+            var item = new Item(src.id, src.value)
+            {
+                min_value = src.min_value,
+                max_value = src.max_value,
+                self_chance = src.self_chance,
+                common_chance = src.common_chance,
+                chance_group = src.chance_group,
+                is_unique = src.is_unique
+            };
             if (src.id.StartsWith(TemplateCrop + "_seed")) item.id = seedId;
             else if (src.id.StartsWith(TemplateCrop + "_crop")) item.id = cropId;
             return item;
@@ -136,13 +144,21 @@ namespace ExtendZombieFarm
         }
 
         private float _nextScan;
+        private int _lastDrawers = -1, _lastCarrot = -1;
 
         // Zombie beds are instantiated when their area loads, so look for new ones periodically.
         private void Update()
         {
             if (Time.realtimeSinceStartup < _nextScan || VisualParams.Count == 0) return;
             _nextScan = Time.realtimeSinceStartup + 2f;
-            foreach (var d in FindObjectsOfType<SmartDrawer>())
+            var drawers = FindObjectsOfType<SmartDrawer>();
+            var withCarrot = drawers.Count(d => d != null && d.smart_drawer_atoms != null && d.smart_drawer_atoms.Any(a => a.string_value == TemplateCrop));
+            if (drawers.Length != _lastDrawers || withCarrot != _lastCarrot)
+            {
+                _lastDrawers = drawers.Length; _lastCarrot = withCarrot;
+                Logger.LogInfo("Scan: SmartDrawers=" + drawers.Length + ", with carrot atom=" + withCarrot);
+            }
+            foreach (var d in drawers)
             {
                 if (d == null || d.smart_drawer_atoms == null) continue;
                 ExtendDrawer(d);
