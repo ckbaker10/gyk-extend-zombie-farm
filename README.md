@@ -14,7 +14,7 @@ Ernte, Samen und Stroh, nur mit Hanf-Items.
 
 Verifiziert per Balance-Dump (2026-11-22): Zombie-Crafts sind eigenständig
 (`craft_in` = `zombie_garden_desk_0/1/2`, kein `change_wgo`). Ungetestet im
-Spiel: Anzeige des Beets. Config `Visual Crop` (Standard `carrot`) bestimmt das
+Spiel: Anzeige des Beets. Config `Visual Crop` (leer) bestimmt das
 Sprite, da es für Hanf keines gibt.
 
 ## Bauen / Installieren

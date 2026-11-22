@@ -20,6 +20,7 @@ namespace ExtendZombieFarm
         private const string TemplateCrop = "carrot";
 
         internal static Plugin Instance;
+        internal static readonly Dictionary<string, string> VisualParams = new Dictionary<string, string>();
         internal static ConfigEntry<string> VisualCrop;
 
         private static readonly MethodInfo MemberwiseClone =
@@ -27,73 +28,11 @@ namespace ExtendZombieFarm
 
         private static readonly FieldInfo NameCache = typeof(CraftDefinition).GetField("_cached_name", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
-        private readonly HashSet<string> _dumped = new HashSet<string>();
-        private float _nextScan;
-
-        // Phase 2 (temporary): describe how the zombie bed and the hemp field draw their plants.
-        private void Update()
-        {
-            if (Time.realtimeSinceStartup < _nextScan) return;
-            _nextScan = Time.realtimeSinceStartup + 5f;
-            try
-            {
-                foreach (var d in FindObjectsOfType<SmartDrawer>())
-                {
-                    var wgo = d.GetComponentInParent<WorldGameObject>();
-                    var id = wgo != null ? wgo.obj_id : null;
-                    if (id == null || !(id.StartsWith("zombie_garden_desk") || id.Contains("cannabis"))) continue;
-                    DumpOnce("SmartDrawer", id, d.gameObject);
-                    foreach (var a in d.smart_drawer_atoms) DumpAtom(id, a);
-                }
-                foreach (var g in FindObjectsOfType<GardenCustomDrawer>())
-                {
-                    var wgo = g.GetComponentInParent<WorldGameObject>();
-                    var id = wgo != null ? wgo.obj_id : null;
-                    if (id == null || !id.Contains("cannabis")) continue;
-                    DumpOnce("GardenCustomDrawer", id, g.gameObject);
-                    foreach (var o in g.garden_stages) if (o != null) DumpOnce("stage", id + "/" + o.name, o);
-                }
-            }
-            catch (Exception e) { Logger.LogError("scan failed: " + e); }
-        }
-
-        private void DumpAtom(string id, SmartDrawerAtom a)
-        {
-            var key = "atom:" + id + ":" + (a.obj != null ? a.obj.name : "null");
-            if (!_dumped.Add(key)) return;
-            var sb = new StringBuilder("ATOM " + id + " obj=" + (a.obj != null ? a.obj.name : "null") + " condition=" + a.condition
-                + " int=" + a.int_value + "/" + a.int_value_2 + " str=" + a.string_value + " f=" + a.float_value + "/" + a.float_value_2 + "\n");
-            if (a.obj != null) Tree(a.obj.transform, 1, sb);
-            File.AppendAllText(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), "visual-dump.txt"), sb.ToString());
-        }
-
-        private void DumpOnce(string kind, string id, GameObject go)
-        {
-            if (!_dumped.Add(kind + ":" + id)) return;
-            var sb = new StringBuilder(kind.ToUpper() + " " + id + "\n");
-            Tree(go.transform, 1, sb);
-            File.AppendAllText(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), "visual-dump.txt"), sb.ToString());
-        }
-
-        private static void Tree(Transform t, int depth, StringBuilder sb)
-        {
-            if (depth > 6) return;
-            foreach (Transform c in t)
-            {
-                var sr = c.GetComponent<SpriteRenderer>();
-                var comps = string.Join(",", c.GetComponents<Component>().Where(x => x != null).Select(x => x.GetType().Name).ToArray());
-                sb.AppendLine(new string(' ', depth * 2) + c.name + " active=" + c.gameObject.activeSelf + " pos=" + c.localPosition
-                    + " comps=[" + comps + "]" + (sr != null ? " sprite=" + (sr.sprite != null ? sr.sprite.name : "null") : ""));
-                Tree(c, depth + 1, sb);
-            }
-        }
-
         private void Awake()
         {
             Instance = this;
-            VisualCrop = Config.Bind("General", "Visual Crop", "carrot",
-                "Which vanilla crop sprite the zombie bed shows for added crops (wheat, cabbage, carrot, beet). " +
-                "Use the crop's own name (e.g. 'hamp') to show nothing if the game has no sprite for it.");
+            VisualCrop = Config.Bind("General", "Visual Crop", "",
+                "Advanced: leave empty. Param name used to draw added crops on the zombie bed; empty = the crop's own name (hamp).");
             new Harmony("ckbaker10.gyk.extendzombiefarm").PatchAll(typeof(Plugin).Assembly);
         }
 
@@ -118,17 +57,21 @@ namespace ExtendZombieFarm
                     if (crop == TemplateCrop) continue;
                     if (all.Any(c => c.id.StartsWith("garden_" + crop + "_grow_desk_planting"))) continue;
 
-                    var seedBase = group.First().needs[0].id.Split(':')[0]; // e.g. hamp_seed
-                    var cropBase = seedBase.Replace("_seed", "_crop");
-                    var visual = VisualCrop.Value;
+                    var seedId = group.First().needs[0].id;                  // e.g. hamp_seed:1 (what the player field yields)
+                    var ready = GameBalance.me.objs_data.FirstOrDefault(o => o.id == "garden_" + crop + "_ready");
+                    var cropId = ready?.drop_items.FirstOrDefault(i => i.id.Contains("_crop"))?.id; // e.g. hamp_crop:1
+                    if (cropId == null) { Instance.Logger.LogWarning("No crop drop found for " + crop + ", skipped"); continue; }
+                    var cropBase = cropId.Split(':')[0];
+                    var visual = string.IsNullOrEmpty(VisualCrop.Value) ? seedId.Split('_')[0] : VisualCrop.Value;
+                    VisualParams[crop] = visual;
 
                     foreach (var template in all.Where(c => c.id == "garden_" + TemplateCrop + "_grow_desk_planting").ToList())
                     {
                         var craft = (CraftDefinition)MemberwiseClone.Invoke(template, null);
                         craft.id = "garden_" + crop + "_grow_desk_planting";
                         craft.craft_in = new List<string>(template.craft_in);
-                        craft.needs = template.needs.Select(i => Remap(i, seedBase, cropBase)).ToList();
-                        craft.output = template.output.Select(i => Remap(i, seedBase, cropBase)).ToList();
+                        craft.needs = template.needs.Select(i => Remap(i, seedId, cropId)).ToList();
+                        craft.output = template.output.Select(i => Remap(i, seedId, cropId)).ToList();
                         craft.output_res_wgo = Rekey(template.output_res_wgo, visual);
                         craft.set_when_cancelled = template.set_when_cancelled;
                         craft.output_set_res_wgo = Rekey(template.output_set_res_wgo, visual);
@@ -143,7 +86,7 @@ namespace ExtendZombieFarm
                             string.Join(",", craft.needs.Select(n => n.id + "x" + n.value).ToArray()) + "] out=[" +
                             string.Join(",", craft.output.Select(n => n.id + " " + n.min_value + ".." + n.max_value + " ch=" + n.self_chance).ToArray()) + "]");
                     }
-                    Instance.Logger.LogInfo("Zombie bed: added crop '" + crop + "' (" + seedBase + ")");
+                    Instance.Logger.LogInfo("Zombie bed: added crop '" + crop + "' (" + seedId + ")");
                 }
                 Instance.Logger.LogInfo("Added " + added + " zombie garden craft(s)");
             }
@@ -153,10 +96,11 @@ namespace ExtendZombieFarm
             }
         }
 
-        private static Item Remap(Item src, string seedBase, string cropBase)
+        private static Item Remap(Item src, string seedId, string cropId)
         {
             var item = new Item(src);
-            item.id = src.id.Replace(TemplateCrop + "_seed", seedBase).Replace(TemplateCrop + "_crop", cropBase);
+            if (src.id.StartsWith(TemplateCrop + "_seed")) item.id = seedId;
+            else if (src.id.StartsWith(TemplateCrop + "_crop")) item.id = cropId;
             return item;
         }
 
@@ -173,6 +117,80 @@ namespace ExtendZombieFarm
                 copy.Set(visual, v);
             }
             return copy;
+        }
+
+        // ---- Visuals: draw added crops on the zombie bed using the normal field's sprites ----
+
+        private static Dictionary<string, Sprite> _sprites;
+
+        private static Sprite FindSprite(string name)
+        {
+            if (_sprites == null)
+            {
+                _sprites = new Dictionary<string, Sprite>();
+                foreach (var sp in Resources.FindObjectsOfTypeAll<Sprite>())
+                    if (sp != null && sp.name.StartsWith("garden_") && !_sprites.ContainsKey(sp.name)) _sprites[sp.name] = sp;
+            }
+            Sprite r;
+            return _sprites.TryGetValue(name, out r) ? r : null;
+        }
+
+        [HarmonyPatch(typeof(SmartDrawer), "Redraw")]
+        [HarmonyPrefix]
+        private static void SmartDrawer_Redraw(SmartDrawer __instance)
+        {
+            try
+            {
+                if (__instance.smart_drawer_atoms == null || VisualParams.Count == 0) return;
+                var atoms = __instance.smart_drawer_atoms;
+                if (!atoms.Any(a => a.string_value == TemplateCrop && a.obj != null)) return;
+                foreach (var kv in VisualParams)
+                {
+                    var param = kv.Value;
+                    if (atoms.Any(a => a.string_value == param)) continue;
+                    var hemp = kv.Key == "cannabis" ? "hemp" : kv.Key;
+                    foreach (var tmpl in atoms.Where(a => a.string_value == TemplateCrop && a.obj != null).ToList())
+                    {
+                        var go = UnityEngine.Object.Instantiate(tmpl.obj, tmpl.obj.transform.parent);
+                        go.name = param;
+                        go.transform.localPosition = tmpl.obj.transform.localPosition;
+                        var stage = tmpl.obj.transform.parent.name; // st_2 .. st_8
+                        foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>(true))
+                        {
+                            var n = sr.sprite != null ? sr.sprite.name : null;
+                            if (n == null || !n.StartsWith("garden_" + TemplateCrop + "_")) continue;
+                            var tail = n.Substring(("garden_" + TemplateCrop + "_").Length);   // st_4_layer_1_pL
+                            var sprite = FindSprite("garden_" + hemp + "_" + tail)
+                                         ?? FindSprite("garden_" + hemp + "_" + (tail.EndsWith("_pL") || tail.EndsWith("_pR") ? tail.Substring(0, tail.Length - 3) : tail));
+                            if (sprite != null && !(tail.EndsWith("_pR") && FindSprite("garden_" + hemp + "_" + tail) == null))
+                            {
+                                sr.sprite = sprite;
+                            }
+                            else
+                            {
+                                sr.gameObject.SetActive(false); // hemp has no matching sprite for this layer
+                            }
+                        }
+                        var atom = new SmartDrawerAtom
+                        {
+                            obj = go,
+                            condition = tmpl.condition,
+                            string_value = param,
+                            int_value = tmpl.int_value,
+                            int_value_2 = tmpl.int_value_2,
+                            float_value = tmpl.float_value,
+                            float_value_2 = tmpl.float_value_2,
+                            update_period = tmpl.update_period
+                        };
+                        atoms.Add(atom);
+                    }
+                    Instance.Logger.LogInfo("Zombie bed visuals added for '" + param + "' on " + __instance.name);
+                }
+            }
+            catch (Exception e)
+            {
+                Instance.Logger.LogError("Zombie bed visuals failed: " + e);
+            }
         }
     }
 }
