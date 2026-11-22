@@ -4,7 +4,10 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using BepInEx;
+using System.IO;
+using System.Text;
 using BepInEx.Configuration;
+using UnityEngine;
 using HarmonyLib;
 
 namespace ExtendZombieFarm
@@ -23,6 +26,67 @@ namespace ExtendZombieFarm
             typeof(object).GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly FieldInfo NameCache = typeof(CraftDefinition).GetField("_cached_name", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+        private readonly HashSet<string> _dumped = new HashSet<string>();
+        private float _nextScan;
+
+        // Phase 2 (temporary): describe how the zombie bed and the hemp field draw their plants.
+        private void Update()
+        {
+            if (Time.realtimeSinceStartup < _nextScan) return;
+            _nextScan = Time.realtimeSinceStartup + 5f;
+            try
+            {
+                foreach (var d in FindObjectsOfType<SmartDrawer>())
+                {
+                    var wgo = d.GetComponentInParent<WorldGameObject>();
+                    var id = wgo != null ? wgo.obj_id : null;
+                    if (id == null || !(id.StartsWith("zombie_garden_desk") || id.Contains("cannabis"))) continue;
+                    DumpOnce("SmartDrawer", id, d.gameObject);
+                    foreach (var a in d.smart_drawer_atoms) DumpAtom(id, a);
+                }
+                foreach (var g in FindObjectsOfType<GardenCustomDrawer>())
+                {
+                    var wgo = g.GetComponentInParent<WorldGameObject>();
+                    var id = wgo != null ? wgo.obj_id : null;
+                    if (id == null || !id.Contains("cannabis")) continue;
+                    DumpOnce("GardenCustomDrawer", id, g.gameObject);
+                    foreach (var o in g.garden_stages) if (o != null) DumpOnce("stage", id + "/" + o.name, o);
+                }
+            }
+            catch (Exception e) { Logger.LogError("scan failed: " + e); }
+        }
+
+        private void DumpAtom(string id, SmartDrawerAtom a)
+        {
+            var key = "atom:" + id + ":" + (a.obj != null ? a.obj.name : "null");
+            if (!_dumped.Add(key)) return;
+            var sb = new StringBuilder("ATOM " + id + " obj=" + (a.obj != null ? a.obj.name : "null") + " condition=" + a.condition
+                + " int=" + a.int_value + "/" + a.int_value_2 + " str=" + a.string_value + " f=" + a.float_value + "/" + a.float_value_2 + "\n");
+            if (a.obj != null) Tree(a.obj.transform, 1, sb);
+            File.AppendAllText(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), "visual-dump.txt"), sb.ToString());
+        }
+
+        private void DumpOnce(string kind, string id, GameObject go)
+        {
+            if (!_dumped.Add(kind + ":" + id)) return;
+            var sb = new StringBuilder(kind.ToUpper() + " " + id + "\n");
+            Tree(go.transform, 1, sb);
+            File.AppendAllText(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), "visual-dump.txt"), sb.ToString());
+        }
+
+        private static void Tree(Transform t, int depth, StringBuilder sb)
+        {
+            if (depth > 6) return;
+            foreach (Transform c in t)
+            {
+                var sr = c.GetComponent<SpriteRenderer>();
+                var comps = string.Join(",", c.GetComponents<Component>().Where(x => x != null).Select(x => x.GetType().Name).ToArray());
+                sb.AppendLine(new string(' ', depth * 2) + c.name + " active=" + c.gameObject.activeSelf + " pos=" + c.localPosition
+                    + " comps=[" + comps + "]" + (sr != null ? " sprite=" + (sr.sprite != null ? sr.sprite.name : "null") : ""));
+                Tree(c, depth + 1, sb);
+            }
+        }
 
         private void Awake()
         {
