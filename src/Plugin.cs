@@ -8,6 +8,7 @@ using HarmonyLib;
 namespace ExtendZombieFarm
 {
     [BepInPlugin("ckbaker10.gyk.extendzombiefarm", "Extend Zombie Farm", "0.1.0")]
+    [HarmonyPatch]
     public class Plugin : BaseUnityPlugin
     {
         private static readonly System.Reflection.FieldInfo ExprField =
@@ -17,7 +18,8 @@ namespace ExtendZombieFarm
 
         private void Awake()
         {
-            new Harmony("ckbaker10.gyk.extendzombiefarm").PatchAll();
+            new Harmony("ckbaker10.gyk.extendzombiefarm").PatchAll(typeof(Plugin).Assembly);
+            Logger.LogInfo("Patches applied: " + string.Join(",", new Harmony("ckbaker10.gyk.extendzombiefarm").GetPatchedMethods().Select(m => m.Name).ToArray()));
         }
 
         // Phase 1: dump the balance data we need to understand the zombie garden.
