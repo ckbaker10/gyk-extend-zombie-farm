@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ExtendZombieFarm</AssemblyName>
+    <GameDir Condition="'$(GameDir)' == ''">/home/lukas/Games/Heroic/Prefixes/Graveyard Keeper GE/drive_c/Games/Graveyard Keeper</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BepInEx"><HintPath>$(GameDir)/BepInEx/core/BepInEx.dll</HintPath></Reference>
+    <Reference Include="0Harmony"><HintPath>$(GameDir)/BepInEx/core/0Harmony.dll</HintPath></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameDir)/Graveyard Keeper_Data/Managed/Assembly-CSharp.dll</HintPath></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameDir)/Graveyard Keeper_Data/Managed/UnityEngine.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameDir)/Graveyard Keeper_Data/Managed/UnityEngine.CoreModule.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>
