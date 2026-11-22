@@ -135,9 +135,21 @@ namespace ExtendZombieFarm
             return _sprites.TryGetValue(name, out r) ? r : null;
         }
 
-        [HarmonyPatch(typeof(SmartDrawer), "Redraw")]
-        [HarmonyPrefix]
-        private static void SmartDrawer_Redraw(SmartDrawer __instance)
+        private float _nextScan;
+
+        // Zombie beds are instantiated when their area loads, so look for new ones periodically.
+        private void Update()
+        {
+            if (Time.realtimeSinceStartup < _nextScan || VisualParams.Count == 0) return;
+            _nextScan = Time.realtimeSinceStartup + 2f;
+            foreach (var d in FindObjectsOfType<SmartDrawer>())
+            {
+                if (d == null || d.smart_drawer_atoms == null) continue;
+                ExtendDrawer(d);
+            }
+        }
+
+        private static void ExtendDrawer(SmartDrawer __instance)
         {
             try
             {
@@ -149,6 +161,7 @@ namespace ExtendZombieFarm
                     var param = kv.Value;
                     if (atoms.Any(a => a.string_value == param)) continue;
                     var hemp = kv.Key == "cannabis" ? "hemp" : kv.Key;
+                    int swapped = 0, hidden = 0;
                     foreach (var tmpl in atoms.Where(a => a.string_value == TemplateCrop && a.obj != null).ToList())
                     {
                         var go = UnityEngine.Object.Instantiate(tmpl.obj, tmpl.obj.transform.parent);
@@ -164,11 +177,11 @@ namespace ExtendZombieFarm
                                          ?? FindSprite("garden_" + hemp + "_" + (tail.EndsWith("_pL") || tail.EndsWith("_pR") ? tail.Substring(0, tail.Length - 3) : tail));
                             if (sprite != null && !(tail.EndsWith("_pR") && FindSprite("garden_" + hemp + "_" + tail) == null))
                             {
-                                sr.sprite = sprite;
+                                sr.sprite = sprite; swapped++;
                             }
                             else
                             {
-                                sr.gameObject.SetActive(false); // hemp has no matching sprite for this layer
+                                sr.gameObject.SetActive(false); hidden++; // hemp has no matching sprite for this layer
                             }
                         }
                         var atom = new SmartDrawerAtom
@@ -184,7 +197,7 @@ namespace ExtendZombieFarm
                         };
                         atoms.Add(atom);
                     }
-                    Instance.Logger.LogInfo("Zombie bed visuals added for '" + param + "' on " + __instance.name);
+                    Instance.Logger.LogInfo("Zombie bed visuals added for '" + param + "' on " + __instance.name + " (sprites swapped=" + swapped + ", hidden=" + hidden + ")");
                 }
             }
             catch (Exception e)
