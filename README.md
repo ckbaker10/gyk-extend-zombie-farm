@@ -7,13 +7,14 @@ alle Samen, die auch im normalen Beet wachsen (z. B. Hanf). Spalier-Pflanzen
 ## Funktion (1.0.0)
 
 Beim Laden der Spielbalance werden für jede Pflanze des normalen Beets ohne
-Spalier, die dem Zombie-Beet fehlt (derzeit Hanf), die Zwiebel-Crafts
-`garden_onion_grow_desk_planting_1..3` geklont: gleiche Beetstufen, gleiche
-Kosten (24 Samen), Ernte, Samen und Stroh, nur mit Hanf-Items.
+Spalier, die dem Zombie-Beet fehlt (derzeit Hanf), der einstufige Karotten-Craft
+`garden_carrot_grow_desk_planting` geklont (wie Karotte/Weizen/Kohl/Rübe nur
+eine Qualitätsstufe, Items ohne `:n`): gleiche Beetstufen, Kosten (24 Samen),
+Ernte, Samen und Stroh, nur mit Hanf-Items.
 
 Verifiziert per Balance-Dump (2026-11-22): Zombie-Crafts sind eigenständig
 (`craft_in` = `zombie_garden_desk_0/1/2`, kein `change_wgo`). Ungetestet im
-Spiel: Anzeige des Beets. Config `Visual Crop` (Standard `onion`) bestimmt das
+Spiel: Anzeige des Beets. Config `Visual Crop` (Standard `carrot`) bestimmt das
 Sprite, da es für Hanf keines gibt.
 
 ## Bauen / Installieren

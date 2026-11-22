@@ -14,7 +14,7 @@ namespace ExtendZombieFarm
     public class Plugin : BaseUnityPlugin
     {
         // Vanilla zombie crop whose crafts are used as the template for missing crops.
-        private const string TemplateCrop = "onion";
+        private const string TemplateCrop = "carrot";
 
         internal static Plugin Instance;
         internal static ConfigEntry<string> VisualCrop;
@@ -27,8 +27,8 @@ namespace ExtendZombieFarm
         private void Awake()
         {
             Instance = this;
-            VisualCrop = Config.Bind("General", "Visual Crop", "onion",
-                "Which vanilla crop sprite the zombie bed shows for added crops (wheat, cabbage, carrot, beet, lentils, pumpkin, onion). " +
+            VisualCrop = Config.Bind("General", "Visual Crop", "carrot",
+                "Which vanilla crop sprite the zombie bed shows for added crops (wheat, cabbage, carrot, beet). " +
                 "Use the crop's own name (e.g. 'hamp') to show nothing if the game has no sprite for it.");
             new Harmony("ckbaker10.gyk.extendzombiefarm").PatchAll(typeof(Plugin).Assembly);
         }
@@ -58,10 +58,10 @@ namespace ExtendZombieFarm
                     var cropBase = seedBase.Replace("_seed", "_crop");
                     var visual = VisualCrop.Value;
 
-                    foreach (var template in all.Where(c => c.id.StartsWith("garden_" + TemplateCrop + "_grow_desk_planting")).ToList())
+                    foreach (var template in all.Where(c => c.id == "garden_" + TemplateCrop + "_grow_desk_planting").ToList())
                     {
                         var craft = (CraftDefinition)MemberwiseClone.Invoke(template, null);
-                        craft.id = template.id.Replace("garden_" + TemplateCrop, "garden_" + crop);
+                        craft.id = "garden_" + crop + "_grow_desk_planting";
                         craft.craft_in = new List<string>(template.craft_in);
                         craft.needs = template.needs.Select(i => Remap(i, seedBase, cropBase)).ToList();
                         craft.output = template.output.Select(i => Remap(i, seedBase, cropBase)).ToList();
